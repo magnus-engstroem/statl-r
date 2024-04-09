@@ -1,0 +1,105 @@
+---
+title: "Compulsory Exercise 2: Title (give your project an informative title)"
+author:
+- "Einride B. Osland" \#1.
+- "Magnus Engstrøm" \#2.
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+header-includes: \usepackage{amsmath}
+output:
+  # html_document:
+  #   toc: no
+  #   toc_depth: '2'
+  #   df_print: paged
+  pdf_document:
+    toc: no
+    toc_depth: '2'
+urlcolor: blue
+abstract: "This is the place for your abstract (max 350 words)"
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+# Feel free to change the setting as you see fit
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      strip.white = TRUE,
+                      prompt = FALSE,
+                      cache = TRUE,
+                      size = "scriptsize",
+                      fig.width = 4,
+                      fig.height = 3,
+                      fig.align = "center")
+
+```
+
+```{r, eval=TRUE, echo=FALSE}
+library("knitr")
+library("rmarkdown")
+```
+
+<!--  Etc (load all packages needed). -->
+
+## Introduction: Scope and purpose of your project
+
+## Descriptive data analysis/statistics
+
+## Methods
+
+## Results and interpretation
+
+## Summary
+
+
+
+```{r}
+library(gbm)
+
+
+Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
+Adam_w_data <- subset(Adam_data, select = -X)
+Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
+Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
+Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
+Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
+
+
+str(Adam_w_data)
+
+
+Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~., 
+                  data = Adam_w_data,
+                  distribution = "gaussian",
+                  n.trees = 300,
+                  shrinkage = 0.1,
+                  interaction.depth = 5,
+                  n.minobsinnode = 10,
+                  bag.fraction = 1,
+                  cv.folds = 5,
+                  )
+
+gbm.perf(Adam_w_gbm, method = "cv")
+summary.gbm(Adam_w_gbm)
+
+Adam_w_lm <- lm(formula = guest_satisfaction_overall ~., data = Adam_w_data)
+
+K <- 5
+folds <- 1:nrow(Adam_w_data)%%K
+
+for (i in 0:(K-1)){
+  train <- subset(data = Adam_w_data, folds != i)
+}
+
+
+summary(Adam_w_lm)
+
+
+
+
+
+```
+
+
+```
+
