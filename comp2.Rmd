@@ -39,6 +39,8 @@ library("knitr")
 library("rmarkdown")
 library(gbm)
 library(caret)
+library(ggplot2)
+library(randomForest)
 ```
 
 <!--  Etc (load all packages needed). -->
@@ -74,6 +76,21 @@ Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
 
 str(Adam_w_data)
 ```
+
+
+```{r}
+
+variable_of_interest <- "guest_satisfaction_overall"
+
+# Create pairs plot
+pairs(subset(Adam_w_data, select = -c("room_type", "room_shared", "room_private","host_is_superhost")), 
+      main = "Pairs Plot",
+      pch = 16, # set point character
+      col = "blue") # set point color
+
+```
+
+
 ### Principle component analysis
 
 
@@ -97,12 +114,46 @@ variance_explained <- pca_result$sdev^2
 
 ```{r}
 
-
+plot(1,1)
 
 plot(pca_result)
 
 
 plot(pca_components[, 1], pca_components[, 2], pch = 16, col = "blue", xlab = "PC1", ylab = "PC2")
+
+```
+```{r Random forest}
+
+set.seed(123)
+colnames(Adam_w_data)
+mean(Adam_w_data[,"guest_satisfaction_overall"])
+
+train_indices <- sample(nrow(Adam_w_data), 0.7 * nrow(Adam_w_data_df))
+train_data <- Adam_w_data[train_indices, ]
+test_data <- Adam_w_data[-train_indices, ]
+
+# Train the Random Forest model
+rf_model <- randomForest(guest_satisfaction_overall ~ ., data = train_data)
+
+# Print the model
+print(rf_model)
+
+# Make predictions on the testing set
+predictions <- predict(rf_model, test_data)
+
+
+# Evaluate the model using Mean Absolute Error (MAE)
+mae <- mean(abs(predictions - test_data$guest_satisfaction_overall))
+cat("Mean Absolute Error (MAE):", mae, "\n")
+
+# Evaluate the model using Mean Squared Error (MSE)
+mse <- mean((predictions - test_data$guest_satisfaction_overall)^2)
+cat("Mean Squared Error (MSE):", mse, "\n")
+
+# Evaluate the model using Root Mean Squared Error (RMSE)
+rmse <- sqrt(mse)
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+
 
 ```
 
