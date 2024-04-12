@@ -76,10 +76,6 @@ str(Adam_w_data)
 ```
 ### Principle component analysis
 
-Blablabab adde 
-forskjellige linjer
-blabalba test git
-
 
 ```{r}
 df<-Adam_w_data
@@ -100,13 +96,12 @@ variance_explained <- pca_result$sdev^2
 
 
 ```{r}
-# Scree plot
+
+
+
 plot(pca_result)
 
-# Biplot
-biplot(pca_result, scale = 0)
 
-# Visualizing data points in the reduced-dimensional space
 plot(pca_components[, 1], pca_components[, 2], pch = 16, col = "blue", xlab = "PC1", ylab = "PC2")
 
 ```
