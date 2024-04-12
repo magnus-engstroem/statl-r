@@ -2,7 +2,7 @@
 title: "Compulsory Exercise 2: Title (give your project an informative title)"
 author:
 - "Einride B. Osland" \#1.
-- "Magnus Engstrøm" \#2.
+- "Magnus Engstrom" \#2.
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 header-includes: \usepackage{amsmath}
 output:
@@ -37,11 +37,18 @@ knitr::opts_chunk$set(echo = TRUE,
 ```{r, eval=TRUE, echo=FALSE}
 library("knitr")
 library("rmarkdown")
+library(gbm)
+library(caret)
 ```
 
 <!--  Etc (load all packages needed). -->
 
 ## Introduction: Scope and purpose of your project
+
+## Abstract (max. 350 words) (5 points)
+
+In this project we are aiming to predict customer satisfaction of people who rent Airbnb apartments. This is going to help future customers to choose where to rent in order to have a better experience. It will also help Airbnb filter out apartments that tend to not give good satisfaction, and thus drive away customers, and instead recommend places that tend to make people return.
+
 
 ## Descriptive data analysis/statistics
 
@@ -54,20 +61,59 @@ library("rmarkdown")
 
 
 ```{r}
-library(gbm)
 
 
 Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
-Adam_w_data <- subset(Adam_data, select = -X)
+Adam_w_data <- subset(Adam_w_data, select = -X)
 Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
 Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
 Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
 Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
 
 
+
 str(Adam_w_data)
+```
+### Principle component analysis
+
+Blablabab adde 
+forskjellige linjer
+blabalba test git
 
 
+```{r}
+df<-Adam_w_data
+
+
+non_numeric_vars <- sapply(df, function(x) !is.numeric(x))
+
+numeric_df <- df[, !non_numeric_vars]
+
+
+pca_result <- prcomp(numeric_df, scale. = TRUE)
+
+pca_components <- pca_result$x
+
+
+variance_explained <- pca_result$sdev^2
+```
+
+
+```{r}
+# Scree plot
+plot(pca_result)
+
+# Biplot
+biplot(pca_result, scale = 0)
+
+# Visualizing data points in the reduced-dimensional space
+plot(pca_components[, 1], pca_components[, 2], pch = 16, col = "blue", xlab = "PC1", ylab = "PC2")
+
+```
+
+
+
+```{r Gbm}
 Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~., 
                   data = Adam_w_data,
                   distribution = "gaussian",
