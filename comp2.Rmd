@@ -42,6 +42,7 @@ library(caret)
 library(ggplot2)
 library(randomForest)
 library(GGally)
+library(glmnet)
 ```
 
 <!--  Etc (load all packages needed). -->
@@ -101,7 +102,7 @@ ggpairs(Adam_w_data[,-nums])
 
 ### Principle component analysis
 
-hei
+
 
 
 ```{r}
@@ -194,8 +195,7 @@ summary(Adam_w_lm)
 ```
 
 
-```
-```{r}
+```{r Kfoldlm}
 
 
 Kfoldlm <- function(K){
@@ -206,7 +206,34 @@ Kfoldlm <- function(K){
     train <- subset(Adam_w_data, folds != i)
     test <- subset(Adam_w_data, folds == i)
     Adam_lm <- lm(guest_satisfaction_overall ~., data = train)
-    predicions <- predict(Adam_lm, test, type = "response")
+    predictions <- predict(Adam_lm, test, type = "response")
+    Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
+    print(Squared_errors)
+    errors[i+1] <- sum(Squared_errors)
+  }
+  cat(errors)
+  MSE <- mean(errors)
+  return (MSE)
+}
+
+Kfoldlm(5)
+
+
+```
+
+```{r Lasso}
+
+Lasso <- function(lambda_val, K){
+  folds <- 1:nrow(Adam_w_data)%%K
+  errors = rep(0, K)
+  
+  for (i in 0:(K-1)){
+    train <- subset(Adam_w_data, folds != i)
+    test <- subset(Adam_w_data, folds == i)
+    y <- train$guest_satisfaction_overall
+    x <- data.matrix(subset(train, select = -guest_satisfaction_overall))
+    Adam_lasso <- glmnet(x, y, alpha = 1, lambda = lambda_val)
+    predictions <- predict(Adam_lasso, subset(test, select = -guest_satisfaction_overall), type = "response")
     Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
     errors[i+1] <- sum(Squared_errors)
   }
@@ -215,12 +242,7 @@ Kfoldlm <- function(K){
   return (MSE)
 }
 
-Kfoldlm(10)
-
-
-
-
-
+Lasso(1, 5)
 
 ```
 
