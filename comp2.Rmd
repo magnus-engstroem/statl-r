@@ -62,8 +62,11 @@ The data consists of 1103 observations of 20 variables, those being:  "X","realS
 ```{r load data}
 
 Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
-Adam_w_data <- subset(Adam_w_data, select = -c(X, lng,lat))
-
+Adam_w_data <- subset(Adam_w_data, select = -X)
+Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
+Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
+Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
+Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
 summary(Adam_w_data)
 ```
 When studying the data one can observe that there are multiple variables that 
@@ -97,6 +100,8 @@ ggpairs(Adam_w_data[,-nums])
 
 
 ### Principle component analysis
+
+hei
 
 
 ```{r}
@@ -177,14 +182,7 @@ Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~.,
 gbm.perf(Adam_w_gbm, method = "cv")
 summary.gbm(Adam_w_gbm)
 
-Adam_w_lm <- lm(formula = guest_satisfaction_overall ~., data = Adam_w_data)
 
-K <- 5
-folds <- 1:nrow(Adam_w_data)%%K
-
-for (i in 0:(K-1)){
-  train <- subset(data = Adam_w_data, folds != i)
-}
 
 
 summary(Adam_w_lm)
@@ -194,6 +192,34 @@ summary(Adam_w_lm)
 
 
 ```
+
+
+```
+```{r}
+
+
+Kfoldlm <- function(K){
+  folds <- 1:nrow(Adam_w_data)%%K
+  errors = rep(0, K)
+  
+  for (i in 0:(K-1)){
+    train <- subset(Adam_w_data, folds != i)
+    test <- subset(Adam_w_data, folds == i)
+    Adam_lm <- lm(guest_satisfaction_overall ~., data = train)
+    predicions <- predict(Adam_lm, test, type = "response")
+    Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
+    errors[i+1] <- sum(Squared_errors)
+  }
+  
+  MSE <- sum(errors)/nrow(Adam_w_data)
+  return (MSE)
+}
+
+Kfoldlm(10)
+
+
+
+
 
 
 ```
