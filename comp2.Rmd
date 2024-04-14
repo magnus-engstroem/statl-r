@@ -41,6 +41,7 @@ library(gbm)
 library(caret)
 library(ggplot2)
 library(randomForest)
+library(GGally)
 ```
 
 <!--  Etc (load all packages needed). -->
@@ -51,8 +52,27 @@ library(randomForest)
 
 In this project we are aiming to predict customer satisfaction of people who rent Airbnb apartments. This is going to help future customers to choose where to rent in order to have a better experience. It will also help Airbnb filter out apartments that tend to not give good satisfaction, and thus drive away customers, and instead recommend places that tend to make people return.
 
+Our dataset consists of the Amsterdam weekdays data from the kaggle website. (https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities) 
+The data consists of 1103 observations of 20 variables, those being:  "X","realSum" "room_type","room_shared",room_private","person_capacity","host_is_superhost"          "multi","biz","cleanliness_rating","guest_satisfaction_overall", "bedrooms","dist","metro_dist","attr_index","attr_index_norm","rest_index","rest_index_norm",lng" and "lat".
+
+
 
 ## Descriptive data analysis/statistics
+
+```{r load data}
+
+Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
+Adam_w_data <- subset(Adam_w_data, select = -c(X, lng,lat))
+
+summary(Adam_w_data)
+```
+When studying the data one can observe that there are multiple variables that 
+
+
+```{r}
+Adam_w_data
+
+```
 
 ## Methods
 
@@ -64,29 +84,14 @@ In this project we are aiming to predict customer satisfaction of people who ren
 
 ```{r}
 
+Adam_w_data["guest_satisfaction_overall"]
 
-Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
-Adam_w_data <- subset(Adam_w_data, select = -X)
-Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
-Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
-Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
-Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
+nums <- unlist(lapply(Adam_w_data, is.numeric), use.names = FALSE)  
 
 
+ggpairs(Adam_w_data[,nums])
 
-str(Adam_w_data)
-```
-
-
-```{r}
-
-variable_of_interest <- "guest_satisfaction_overall"
-
-# Create pairs plot
-pairs(subset(Adam_w_data, select = -c("room_type", "room_shared", "room_private","host_is_superhost")), 
-      main = "Pairs Plot",
-      pch = 16, # set point character
-      col = "blue") # set point color
+ggpairs(Adam_w_data[,-nums])
 
 ```
 
