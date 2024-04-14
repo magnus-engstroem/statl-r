@@ -10,11 +10,7 @@ output:
   #   toc: no
   #   toc_depth: '2'
   #   df_print: paged
-  pdf_document:
-    toc: no
-    toc_depth: '2'
-urlcolor: blue
-abstract: "This is the place for your abstract (max 350 words)"
+  pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -47,65 +43,77 @@ library(glmnet)
 
 <!--  Etc (load all packages needed). -->
 
-## Introduction: Scope and purpose of your project
+## Introduction
+
+This project looks at different ways of predicting customer satisfaction at Airbnb. Motivations for predicting this include helping future customers to choose where to rent in order to have a better experience, helping Airbnb to recommend places that create happier customers, and even to help hosts to provide a more attractive place
+
+The dataset used for this contains 1103 observations from Airbnb in Amsterdam on weekdays. Each observation contains 19 covariates, for this project the "guest_satisfaction_overall", the rating given by customers, will act as the response, the rest as predictors. The dataset can be found at [Kaggle.]((<https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities>)
+
+There are many different approaches to a prediction task, each with its strengths and drawbacks. Which one to use must be decided on a case by case basis, and this question heavily depends on the data set. in this project we will investigate the performance of linear models, tree boosting and random forests. The data set used for training these models are only from Amsterdam, and the exact numbers might not be generalizable. Instead we hope that a model/approach that works well here will also work well on similar data, such as Airbnb data from other regions
 
 ## Abstract (max. 350 words) (5 points)
 
-In this project we are aiming to predict customer satisfaction of people who rent Airbnb apartments. This is going to help future customers to choose where to rent in order to have a better experience. It will also help Airbnb filter out apartments that tend to not give good satisfaction, and thus drive away customers, and instead recommend places that tend to make people return.
+In this project we are aiming to predict customer satisfaction of people who rent Airbnb apartments. This is going to . It will also help Airbnb filter out apartments that tend to not give good satisfaction, and thus drive away customers, and instead recommend places that tend to make people return.
 
-Our dataset consists of the Amsterdam weekdays data from the kaggle website. (https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities) 
-The data consists of 1103 observations of 20 variables, those being:  "X","realSum" "room_type","room_shared",room_private","person_capacity","host_is_superhost"          "multi","biz","cleanliness_rating","guest_satisfaction_overall", "bedrooms","dist","metro_dist","attr_index","attr_index_norm","rest_index","rest_index_norm",lng" and "lat".
-
-
+Our dataset consists of the Amsterdam weekdays data from the kaggle website. (<https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities>) The data consists of 1103 observations of 20 variables, those being: "X","realSum" "room_type","room_shared",room_private","person_capacity","host_is_superhost" "multi","biz","cleanliness_rating","guest_satisfaction_overall", "bedrooms","dist","metro_dist","attr_index","attr_index_norm","rest_index","rest_index_norm",lng" and "lat".
 
 ## Descriptive data analysis/statistics
 
 ```{r load data}
 
 Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
-Adam_w_data <- subset(Adam_w_data, select = -X)
-Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
-Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
-Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
-Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
+
 summary(Adam_w_data)
 ```
-When studying the data one can observe that there are multiple variables that 
+In the data there exists a variable called X. This is just the index of the different variables. This is not useful to a model, therefore we chose to remove it.  Furthermore the "attr_index","attr_index_norm","rest_index","rest_index_norm", all dont have any form of explanation in the kaggle set. We decided to remove them, since they A) didnt seem to impact the models, and B) had a perfect 1 correlation with eachother, implying they were just garbage data.
 
+```{r Data_clean}
+Adam_w_data <- subset(Adam_w_data, select = -c(X,attr_index,attr_index_norm,rest_index,rest_index_norm))
 
-```{r}
-Adam_w_data
-
+summary(Adam_w_data)
 ```
 
+What we want to predict is the factor guest_satisfaction_overall. We can see that the mean of the variable is 94.36, and a median of 96.00. So any good model is gonna predict something close to this. We also observe that the data consists of 4 qualitative variables. When choosing a model we either need to remove those, or choose a model that can handle qualitative variables.
+
+
+In order to find out how useful the data is, we have to investigate. We can do this in a multitude of ways. We can visualize the plots using ggpairs. This only works for quantitative data, so we must find another way to analyze the importance of the qualitative parts.
+
+```{r corr}
+
+# Remove non-numeric columns for PCA
+Adam_w_data_numeric <- Adam_w_data[, sapply(Adam_w_data, is.numeric)]
+
+ggpairs(Adam_w_data_numeric[,1:8])
+
+ggpairs(Adam_w_data_numeric[,6:length(Adam_w_data_numeric)])
+```
+
+```{r corr_tot}
+ggpairs(Adam_w_data_numeric)
+```
+
+To make the plot easier to interperet we have split the data into two parts
+
 ## Methods
+
+The first method for prediction applied in this project is linear regression. The linear regression model assumes $\mathbf Y = X \mathbf \beta + \mathbf \epsilon$, where $X$ is the design matrix augmented with a vector of one $\mathbf 1 = (1,..., 1)^T$ as its first column. The least squares estimate for $\mathbf \beta$, $\hat \beta$, has the closed form $\hat \beta = (X^TX)^{-1} X^T Y$
+
+This formula also assumes that the predictors are continuous, but we can see from the data summary that this data set contains categorical variables. To include these in the linear regression model, we must add dummy variables $x_{ij}$, if predictor $i$ is categorical. $x_{ij}$ takes value $1$ when predictor $i$ is on level $j$, if not then $x_{ij} = 0$
+
+$\hat \beta$ gives the linear model with the lowest $RSS = \sum_{k = 1}^{n} (Y_k -\hat Y_k)^2$, but a low $RSS$ doesn't guarantee a low $MSE = E[(Y- \hat Y)^2]$ on new unseen data. To evaluate the performance of a model we use K-fold cross validation to estimate the $MSE$. K-fold cross validation works by splitting the training data into K equally sized parts (folds), then training the model on all the training data except one fold. This last fold we use to find the square error. This we repeat K times, leaving out another fold each time, in order to find the cross validation error.
+
+The data set contains a lot of covariates, and even if linear regression is quite simple, we might get a slightly better performance by reducing its variance. One powerful way of acheving this is lasso regression. 
+
+The data set is quite large, 1103 observations, and linear regression should be
 
 ## Results and interpretation
 
 ## Summary
 
 
-
-```{r}
-
-Adam_w_data["guest_satisfaction_overall"]
-
-nums <- unlist(lapply(Adam_w_data, is.numeric), use.names = FALSE)  
-
-
-ggpairs(Adam_w_data[,nums])
-
-ggpairs(Adam_w_data[,-nums])
-
-```
-
-
 ### Principle component analysis
 
-
-
-
-```{r}
+```{r PCA}
 df<-Adam_w_data
 
 
@@ -121,51 +129,6 @@ pca_components <- pca_result$x
 
 variance_explained <- pca_result$sdev^2
 ```
-
-
-```{r}
-
-plot(pca_result)
-
-
-plot(pca_components[, 1], pca_components[, 2], pch = 16, col = "blue", xlab = "PC1", ylab = "PC2")
-
-```
-```{r Random forest}
-
-set.seed(123)
-colnames(Adam_w_data)
-mean(Adam_w_data[,"guest_satisfaction_overall"])
-
-train_indices <- sample(nrow(Adam_w_data), 0.7 * nrow(Adam_w_data_df))
-train_data <- Adam_w_data[train_indices, ]
-test_data <- Adam_w_data[-train_indices, ]
-
-# Train the Random Forest model
-rf_model <- randomForest(guest_satisfaction_overall ~ ., data = train_data)
-
-# Print the model
-print(rf_model)
-
-# Make predictions on the testing set
-predictions <- predict(rf_model, test_data)
-
-
-# Evaluate the model using Mean Absolute Error (MAE)
-mae <- mean(abs(predictions - test_data$guest_satisfaction_overall))
-cat("Mean Absolute Error (MAE):", mae, "\n")
-
-# Evaluate the model using Mean Squared Error (MSE)
-mse <- mean((predictions - test_data$guest_satisfaction_overall)^2)
-cat("Mean Squared Error (MSE):", mse, "\n")
-
-# Evaluate the model using Root Mean Squared Error (RMSE)
-rmse <- sqrt(mse)
-cat("Root Mean Squared Error (RMSE):", rmse, "\n")
-
-
-```
-
 
 
 ```{r Gbm}
@@ -186,14 +149,7 @@ summary.gbm(Adam_w_gbm)
 
 
 
-summary(Adam_w_lm)
-
-
-
-
-
 ```
-
 
 ```{r Kfoldlm}
 
@@ -209,7 +165,7 @@ Kfoldlm <- function(K){
     predictions <- predict(Adam_lm, test, type = "response")
     Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
     print(Squared_errors)
-    errors[i+1] <- sum(Squared_errors)
+    errors[i+1] <- sum(Squared_errors)/nrow(test)
   }
   cat(errors)
   MSE <- mean(errors)
@@ -223,26 +179,28 @@ Kfoldlm(5)
 
 ```{r Lasso}
 
+Lasso_data <- Adam_w_data[,nums]
+
 Lasso <- function(lambda_val, K){
   folds <- 1:nrow(Adam_w_data)%%K
-  errors = rep(0, K)
+  Lasso_errors = rep(0, K)
   
   for (i in 0:(K-1)){
     train <- subset(Adam_w_data, folds != i)
     test <- subset(Adam_w_data, folds == i)
     y <- train$guest_satisfaction_overall
     x <- data.matrix(subset(train, select = -guest_satisfaction_overall))
+    x_test <- data.matrix(subset(test, select = -guest_satisfaction_overall))
     Adam_lasso <- glmnet(x, y, alpha = 1, lambda = lambda_val)
-    predictions <- predict(Adam_lasso, subset(test, select = -guest_satisfaction_overall), type = "response")
+    predictions <- predict(Adam_lasso, x_test, type = "response")
     Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
-    errors[i+1] <- sum(Squared_errors)
+    Lasso_errors[i+1] <- sum(Squared_errors)
   }
   
-  MSE <- sum(errors)/nrow(Adam_w_data)
+  MSE <- sum(Lasso_errors)/nrow(Adam_w_data)
   return (MSE)
 }
 
 Lasso(1, 5)
 
 ```
-
