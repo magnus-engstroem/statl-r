@@ -1,8 +1,6 @@
 ---
-title: "Compulsory Exercise 2: Title (give your project an informative title)"
-author:
-- "Einride B. Osland" \#1.
-- "Magnus Engstrom" \#2.
+title: "Compulsory Exercise 2"
+author: "Einride B. Osland and Magnus Engstrom"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 header-includes: \usepackage{amsmath}
 output:
@@ -30,7 +28,7 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ```
 
-```{r, eval=TRUE, echo=FALSE}
+```{r library, eval=TRUE, echo=FALSE}
 library("knitr")
 library("rmarkdown")
 library(gbm)
@@ -39,6 +37,7 @@ library(ggplot2)
 library(randomForest)
 library(GGally)
 library(glmnet)
+library(pracma)
 ```
 
 <!--  Etc (load all packages needed). -->
@@ -47,93 +46,143 @@ library(glmnet)
 
 This project looks at different ways of predicting customer satisfaction at Airbnb. Motivations for predicting this include helping future customers to choose where to rent in order to have a better experience, helping Airbnb to recommend places that create happier customers, and even to help hosts to provide a more attractive place
 
-The dataset used for this contains 1103 observations from Airbnb in Amsterdam on weekdays. Each observation contains 19 covariates, for this project the "guest_satisfaction_overall", the rating given by customers, will act as the response, the rest as predictors. The dataset can be found at [Kaggle.]((<https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities>)
+The dataset used for this contains 1103 observations from Airbnb in Amsterdam on weekdays. Each observation contains 15 covariates, for this project the "guest_satisfaction_overall", the rating given by customers, will act as the response, the rest as predictors. The dataset can be found at [Kaggle.]((<https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities>)
 
 There are many different approaches to a prediction task, each with its strengths and drawbacks. Which one to use must be decided on a case by case basis, and this question heavily depends on the data set. in this project we will investigate the performance of linear models, tree boosting and random forests. The data set used for training these models are only from Amsterdam, and the exact numbers might not be generalizable. Instead we hope that a model/approach that works well here will also work well on similar data, such as Airbnb data from other regions
 
-## Abstract (max. 350 words) (5 points)
-
-In this project we are aiming to predict customer satisfaction of people who rent Airbnb apartments. This is going to . It will also help Airbnb filter out apartments that tend to not give good satisfaction, and thus drive away customers, and instead recommend places that tend to make people return.
-
-Our dataset consists of the Amsterdam weekdays data from the kaggle website. (<https://www.kaggle.com/datasets/thedevastator/airbnb-prices-in-european-cities>) The data consists of 1103 observations of 20 variables, those being: "X","realSum" "room_type","room_shared",room_private","person_capacity","host_is_superhost" "multi","biz","cleanliness_rating","guest_satisfaction_overall", "bedrooms","dist","metro_dist","attr_index","attr_index_norm","rest_index","rest_index_norm",lng" and "lat".
+## Abstract
 
 ## Descriptive data analysis/statistics
 
-```{r load data}
+The covariates for this data set looks like this:
+
+```{r load data, echo = FALSE}
 
 Adam_w_data <- data.frame(read.csv("amsterdam_weekdays.csv"))
 
-summary(Adam_w_data)
+str(Adam_w_data)
 ```
-In the data there exists a variable called X. This is just the index of the different variables. This is not useful to a model, therefore we chose to remove it.  Furthermore the "attr_index","attr_index_norm","rest_index","rest_index_norm", all dont have any form of explanation in the kaggle set. We decided to remove them, since they A) didnt seem to impact the models, and B) had a perfect 1 correlation with eachother, implying they were just garbage data.
 
-```{r Data_clean}
-Adam_w_data <- subset(Adam_w_data, select = -c(X,attr_index,attr_index_norm,rest_index,rest_index_norm))
+The variable of interest, guest_satisfaction_overall, looks like this
 
-summary(Adam_w_data)
+```{r satisfacion, echo = FALSE}
+summary(Adam_w_data$guest_satisfaction_overall)
 ```
 
 What we want to predict is the factor guest_satisfaction_overall. We can see that the mean of the variable is 94.36, and a median of 96.00. So any good model is gonna predict something close to this. We also observe that the data consists of 4 qualitative variables. When choosing a model we either need to remove those, or choose a model that can handle qualitative variables.
 
+In the data there exists a variable called X. This is just the index of the different variables. This is not useful to a model, therefore we chose to remove it. Furthermore the "attr_index", "attr_index_norm", "rest_index", "rest_index_norm", all dont have any form of explanation in the kaggle set. We decided to remove them, since they A) didnt seem to impact the models, and B) had a perfect 1 correlation with eachother, implying they were just garbage data.
 
-In order to find out how useful the data is, we have to investigate. We can do this in a multitude of ways. We can visualize the plots using ggpairs. This only works for quantitative data, so we must find another way to analyze the importance of the qualitative parts.
+The data we will be looking at is this
 
-```{r corr}
+```{r Data_clean, echo=FALSE}
+#Removing garbage data
+Adam_w_data <- subset(Adam_w_data, select = -c(X,attr_index,attr_index_norm,rest_index,rest_index_norm))
 
+#Defining the categorical data as categories in the data frame
+Adam_w_data$room_type <- as.factor(Adam_w_data$room_type)
+Adam_w_data$room_shared <- as.factor(Adam_w_data$room_shared)
+Adam_w_data$room_private <- as.factor(Adam_w_data$room_private)
+Adam_w_data$host_is_superhost <- as.factor(Adam_w_data$host_is_superhost)
+
+summary(Adam_w_data)
+```
+
+The variables are:
+
+-   "realSum": renting price
+-   "room_type": type of Airbnb house/room being rented out
+-   "room_shared": if there are a room shared with multiple people
+-   "room_private": the room is private for the guest
+-   "person_capacity": how many people than can stay at this Airbnb
+-   "host_is_superhost": true/false for if the host has status superhost
+-   "multi": if the Airbnb has multiple rooms
+-   "biz": true/false if it is listed for business proposals
+-   "cleanliness_rating": average given rating of cleanliness
+-   "guest_satisfaction_overall": response. given rating of satisfaction by guest
+-   "bedrooms": numbers of listed bedrooms
+-   "dist": Distance form city center
+-   "metro_dist": distance to nearest metro station
+-   "lng": longitude of Airbnb
+-   "lat": latitude of Airbnb
+
+In order to find out how useful the data is, we can visualize the plots using ggpairs. This works best for quantitative data, so we must find another way to analyze the importance of the qualitative parts. The data set is quite large, and in order to make the plot easier to interperet we have split the data into two parts. This plot doesn't show every possible combination of covariates, but all the correlations are shown below.
+
+```{r corr, echo=FALSE}
 # Remove non-numeric columns for PCA
 Adam_w_data_numeric <- Adam_w_data[, sapply(Adam_w_data, is.numeric)]
 
-ggpairs(Adam_w_data_numeric[,1:8])
+ggpairs(Adam_w_data_numeric[,1:6])
+```
+
+```{r corr2, echo=FALSE}
 
 ggpairs(Adam_w_data_numeric[,6:length(Adam_w_data_numeric)])
+
 ```
 
-```{r corr_tot}
-ggpairs(Adam_w_data_numeric)
+We can see that there are no linear patterns in the data. This implies that we don't have high correlation between different predictor variables. We also observe that there is a high correlation between cleanliness and satisfaction. This implies that cleanliness will be a good predictor for satisfaction.
+
+```{r corrtext}
+cor(Adam_w_data_numeric)
 ```
-
-To make the plot easier to interperet we have split the data into two parts
-
-## Methods
-
-The first method for prediction applied in this project is linear regression. The linear regression model assumes $\mathbf Y = X \mathbf \beta + \mathbf \epsilon$, where $X$ is the design matrix augmented with a vector of one $\mathbf 1 = (1,..., 1)^T$ as its first column. The least squares estimate for $\mathbf \beta$, $\hat \beta$, has the closed form $\hat \beta = (X^TX)^{-1} X^T Y$
-
-This formula also assumes that the predictors are continuous, but we can see from the data summary that this data set contains categorical variables. To include these in the linear regression model, we must add dummy variables $x_{ij}$, if predictor $i$ is categorical. $x_{ij}$ takes value $1$ when predictor $i$ is on level $j$, if not then $x_{ij} = 0$
-
-$\hat \beta$ gives the linear model with the lowest $RSS = \sum_{k = 1}^{n} (Y_k -\hat Y_k)^2$, but a low $RSS$ doesn't guarantee a low $MSE = E[(Y- \hat Y)^2]$ on new unseen data. To evaluate the performance of a model we use K-fold cross validation to estimate the $MSE$. K-fold cross validation works by splitting the training data into K equally sized parts (folds), then training the model on all the training data except one fold. This last fold we use to find the square error. This we repeat K times, leaving out another fold each time, in order to find the cross validation error.
-
-The data set contains a lot of covariates, and even if linear regression is quite simple, we might get a slightly better performance by reducing its variance. One powerful way of acheving this is lasso regression. 
-
-The data set is quite large, 1103 observations, and linear regression should be
-
-## Results and interpretation
-
-## Summary
-
 
 ### Principle component analysis
 
 ```{r PCA}
-df<-Adam_w_data
 
 
-non_numeric_vars <- sapply(df, function(x) !is.numeric(x))
-
-numeric_df <- df[, !non_numeric_vars]
 
 
-pca_result <- prcomp(numeric_df, scale. = TRUE)
+pca_result <- prcomp(Adam_w_data_numeric, scale. = TRUE)
 
-pca_components <- pca_result$x
 
 
 variance_explained <- pca_result$sdev^2
+
+variance_explained
+pca_result
 ```
 
+## Methods
 
-```{r Gbm}
-Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~., 
-                  data = Adam_w_data,
+For our prediction task, we are using a multitude of prediction models.
+
+The first method for prediction applied in this project is linear regression. The linear regression model assumes $\mathbf Y = X \mathbf \beta + \mathbf \epsilon$, where $X$ is the design matrix augmented with a vector of one $\mathbf 1 = (1,..., 1)^T$ as its first column. The least squares estimate for $\mathbf \beta$, $\hat \beta$, has the closed form $\hat \beta = (X^TX)^{-1} X^T Y$
+
+This formula also assumes that the predictors are continuous, but we can see from the data summary that this data set contains categorical variables. To include these in the linear regression model, we must add dummy variables $x_{ij}$, if predictor $i$ is categorical. $x_{ij}$ takes value $1$ when predictor $i$ is on level $j$, if not then $x_{ij} = 0$. All of this is already implemented in R using the following function:
+
+```{r linregfunc, eval=FALSE}
+lm(guest_satisfaction_overall ~., data = training_data)
+```
+
+$\hat \beta$ gives the linear model with the lowest $RSS = \sum_{k = 1}^{n} (Y_k -\hat Y_k)^2$, but a low $RSS$ doesn't guarantee a low $MSE = E[(Y- \hat Y)^2]$ on new unseen data. To evaluate the performance of a model we use K-fold cross validation to estimate the $MSE$. K-fold cross validation works by splitting the training data into K equally sized parts (folds), then training the model on all the training data except one fold. This last fold we use to find the square error. This we repeat K times, leaving out another fold each time, in order to find the cross validation error. The cross validation error is an estimate of the real $MSE$
+
+The data set contains a lot of covariates, and even if linear regression is quite simple, we might get a slightly better performance by reducing its variance. One powerful way of acheving this is lasso regression. In Lasso regression, instead of minimizing the $RSS$, we minimize the loss function $L(\beta) = \sum_{j = 1}^{n} (Y_j -\hat Y_j)^2 + \lambda\sum_{i = 1}^{p}|\beta_i|$. The minimizer, $\beta^L$of this function are the lasso regression coefficients. Lasso regression will prioritize a simpler model than regular linear regression. If a covariate is unimportant, its lasso coefficient might be set to 0.
+
+The hyperparameter $\lambda$ must be tuned to achieve a best possible model. A large value for $\lambda$ will give a very simple model, while a small one will give a model that closely resembles regular linear regression. In this project we will use many different values for $\lambda$ and choose the value that gives the lowest cross validation error. Lasso regression is implemented in R using the function
+
+```{r lassofunc, eval=FALSE}
+glmnet(x, y, alpha = 1, lambda = lambda_val)
+```
+
+The data set is quite large, 1103 observations, and we expect linear regression to be robust to variance. We therefore cannot expect a very large improvement in $MSE$ from Lasso regression compared to linear regression.
+
+As described in the data analysis part, we discovered that any good model is going to require ability to interperet qualitative and quantitative predictors. Random forest is one such model that works well.
+
+The random forest algorithm works by first making multiple bootstrapping subset of the original dataset. It then creates multiple decision trees using the bootstrapped samples. It does this by choosing random subset of features to split the trees. It then creates a model based on the weighted average.
+
+Random forest works well when the data is non linear, which as we observed in data analysis. The model is able to predict continous variables with high accuracy, making it ideal for our task. Furthermore random forest is robust when it comes to overfitting. We expect this to be a good model to predict this specific data.
+
+When testing random forest we have both a simple model, using no hyperparameters, and a model using one hyperparameter. The hyperparameter "mtry", of the complex model, tunes how many variables to randomly sample when testing a split. The tuning criterium is $MSE$ estimated using cross validation. We expect this model to outperform the untuned random forest model.
+
+The last, and possibly the most powerful method we investigate in this project is gradient boosting. By powerful, we mean flexible enough to2 capture complicated patterns in the data, while still remaining robust against overfitting
+
+In R, gradient boosting can be implemented using the following function:
+
+```{r gbmfunc, eval=FALSE}
+gbm(formula = guest_satisfaction_overall ~., 
+                  data = training_data,
                   distribution = "gaussian",
                   n.trees = 300,
                   shrinkage = 0.1,
@@ -142,19 +191,16 @@ Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~.,
                   bag.fraction = 1,
                   cv.folds = 5,
                   )
-
-gbm.perf(Adam_w_gbm, method = "cv")
-summary.gbm(Adam_w_gbm)
-
-
-
-
 ```
 
-```{r Kfoldlm}
+In order to compare these models, we will be applying 5-fold cross validation, as the cross validation error (cv error) is a good estimate for the $MSE$ of the model.
 
+## Results and interpretation
 
-Kfoldlm <- function(K){
+We apply 5-fold cross validation to the linear regression model. It gives the following cv-error:
+
+```{r Kfoldlm, echo=FALSE}
+Kfold_linreg <- function(K){
   folds <- 1:nrow(Adam_w_data)%%K
   errors = rep(0, K)
   
@@ -164,22 +210,22 @@ Kfoldlm <- function(K){
     Adam_lm <- lm(guest_satisfaction_overall ~., data = train)
     predictions <- predict(Adam_lm, test, type = "response")
     Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
-    print(Squared_errors)
     errors[i+1] <- sum(Squared_errors)/nrow(test)
   }
-  cat(errors)
   MSE <- mean(errors)
   return (MSE)
 }
-
-Kfoldlm(5)
-
-
 ```
 
-```{r Lasso}
+```{r lmerror}
+Kfold_linreg(5)
+```
 
-Lasso_data <- Adam_w_data[,nums]
+This we can use as a reference when assessing the other models
+
+In particular, linear regression is exactly like lasso regression when $\lambda = 0$. We run lasso regression on different values for $\lambda$
+
+```{r Lasso, echo=FALSE}
 
 Lasso <- function(lambda_val, K){
   folds <- 1:nrow(Adam_w_data)%%K
@@ -201,6 +247,105 @@ Lasso <- function(lambda_val, K){
   return (MSE)
 }
 
-Lasso(1, 5)
+```
+
+```{r lassoKfold, echo = FALSE}
+
+no_lambdas <- 20
+lambdas <- logseq(0.0001, 10, no_lambdas)
+cv_error <- rep(0, no_lambdas)
+
+for (i in 1:no_lambdas){
+  cv_error[i] <- Lasso(lambdas[i], 5)
+}
+
+plot(lambdas, cv_error, log = "x", type = "l", col = "blue", main = "Lasso regression cv-error")
 
 ```
+
+The exact minimal cv-error is:
+
+```{r mincv, echo =FALSE}
+cat("minimum cv-error: ", min(cv_error))
+```
+
+This happens when $\lambda$ is:
+
+```{r lambda, echo=FALSE}
+l_min <- lambdas[which(cv_error == min(cv_error))[[1]]]
+cat("minimum lambda =", l_min)
+```
+
+What we can see is Lasso is not able to improve the linear regression model. The cv-error is not noticably improved, and the optimal value for $\lambda$ is barely different from $0$.
+
+We now have reason to believe that the $MSE$ of the linear regression model, as estimated by the cv-error, is not due to variance in the model. If this were the case, we would expect to see improvement from the in the Lasso regression model. We might instead expect the cv-error to be due to bias. The following methods are all more flexible, and might therefore achieve less bias.
+
+We now apply 5-fold cross validation to random forests:
+
+```{r Randomforestcv}
+
+
+Kfold_rf <- function(K){
+  folds <- 1:nrow(Adam_w_data)%%K
+  errors = rep(0, K)
+  
+  for (i in 0:(K-1)){
+    train <- subset(Adam_w_data, folds != i)
+    test <- subset(Adam_w_data, folds == i)
+    rf_model <- randomForest(guest_satisfaction_overall ~ ., data = train)
+    predictions <- predict(rf_model, test, type = "response")
+    Squared_errors <- (test["guest_satisfaction_overall"] - predictions)^2
+    errors[i+1] <- sum(Squared_errors)/nrow(test)
+  }
+  MSE <- mean(errors)
+  return (MSE)
+}
+
+cat("5-fold cross validation error for random forests: ", Kfold_rf(5))
+
+```
+This is not able to outperform any of the previously applied models. In addition, big downside of the Random forest is that it is very computing intesive. Our dataset is rather small so the time spent training wasn't too great. If we were to expand the scope of the project, say by including more cities, and adding weekends, this model would be expensive to tune.
+
+Random forests can be improved however. Below we have another implementation of random forests. this implementation is tuning the hyperparameter "medv", which controls the subset of covariates the method trains the next tree on. by fint tuning this, we might get improved performance
+
+```{r rftuned}
+
+control <- trainControl(method="cv", number=5)
+
+
+rf_tuned <- train(guest_satisfaction_overall~., 
+                  data=Adam_w_data, method="rf", 
+                  metric="MSE", 
+                  tuneGrid=expand.grid(.mtry=sqrt(ncol(Adam_w_data))), 
+                  trControl=control)
+
+
+cat("5-fold cross validation square error:", rf_tuned$results$RMSE^2)
+
+```
+
+While this is an improvement we expected to see, it is not by very much. Even this more optimized version of random forests suffers a bit from the same problems as the previous model, in that it is computer intensive and very difficult to interpret. 
+
+The way we chose to train the random forest is to only use one hyperparameter. This helps to reduce computing time and to avoid overfitting. In order to improve the result, we could add more hyperparameters like number of trees and the sample size. This could be beneficial to the performance, at the cost of computing time.
+
+
+```{r Gbm}
+Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~., 
+                  data = Adam_w_data,
+                  distribution = "gaussian",
+                  n.trees = 300,
+                  shrinkage = 0.1,
+                  interaction.depth = 5,
+                  n.minobsinnode = 10,
+                  bag.fraction = 1,
+                  cv.folds = 5,
+                  )
+
+gbm.perf(Adam_w_gbm, method = "cv")
+summary.gbm(Adam_w_gbm)
+Adam_w_gbm
+names(Adam_w_gbm)
+length(Adam_w_gbm$cv.error)
+```
+
+## Summary
