@@ -38,9 +38,18 @@ library(randomForest)
 library(GGally)
 library(glmnet)
 library(pracma)
+library(gridExtra)
 ```
 
 <!--  Etc (load all packages needed). -->
+
+## Abstract
+In this report we explored prediction methods of satisfaction in Amsterdam Airbnb listings. We did this by looking at a Kaggle dataset. We wanted to see which statistical model could accurately predict customer satisfaction.
+
+The data consists of a multitude of variables. Most of the data is quantitative, some of them are qualitative. The variable of interest being “guest_satisfaction_overall”. We have analyzed it using multiple methods, including boxplots, PCA and correlation. The data seemed to be nonlinear, and have varying importance for predicting guest satisfaction.
+
+The prediction models tested were linear regression, lasso regression, random forests and gradient boosting.
+All the models had very similar performance, although random forests had a slightly better performance than the others. Given this,we prefer the simpler models for this exact data we used. If we were to expand the project we would expect gradient boosting to be a better model.
 
 ## Introduction
 
@@ -50,7 +59,6 @@ The dataset used for this contains 1103 observations from Airbnb in Amsterdam on
 
 There are many different approaches to a prediction task, each with its strengths and drawbacks. Which one to use must be decided on a case by case basis, and this question heavily depends on the data set. in this project we will investigate the performance of linear models, tree boosting and random forests. The data set used for training these models are only from Amsterdam, and the exact numbers might not be generalizable. Instead we hope that a model/approach that works well here will also work well on similar data, such as Airbnb data from other regions
 
-## Abstract
 
 ## Descriptive data analysis/statistics
 
@@ -73,7 +81,7 @@ What we want to predict is the factor guest_satisfaction_overall. We can see tha
 
 In the data there exists a variable called X. This is just the index of the different variables. This is not useful to a model, therefore we chose to remove it. Furthermore the "attr_index", "attr_index_norm", "rest_index", "rest_index_norm", all dont have any form of explanation in the kaggle set. We decided to remove them, since they A) didnt seem to impact the models, and B) had a perfect 1 correlation with eachother, implying they were just garbage data.
 
-The data we will be looking at is this
+The clean data looks like this
 
 ```{r Data_clean, echo=FALSE}
 #Removing garbage data
@@ -113,36 +121,69 @@ In order to find out how useful the data is, we can visualize the plots using gg
 Adam_w_data_numeric <- Adam_w_data[, sapply(Adam_w_data, is.numeric)]
 
 ggpairs(Adam_w_data_numeric[,1:6])
-```
-
-```{r corr2, echo=FALSE}
 
 ggpairs(Adam_w_data_numeric[,6:length(Adam_w_data_numeric)])
 
 ```
 
-We can see that there are no linear patterns in the data. This implies that we don't have high correlation between different predictor variables. We also observe that there is a high correlation between cleanliness and satisfaction. This implies that cleanliness will be a good predictor for satisfaction.
+We can see that there are nonlinear patterns in the data. This implies that we don't have high correlation between different predictor variables. We also observe that there is a high correlation between cleanliness and satisfaction. This implies that cleanliness will be a good predictor for satisfaction. 
 
+Below is the exact correlation between all the numeric covariates.
 ```{r corrtext}
 cor(Adam_w_data_numeric)
 ```
 
 ### Principle component analysis
+In addition to the correlation we can also do a PCA in order to analyze which variables are useful in predicting the satisfaction. R has PCA built in.
 
-```{r PCA}
-
-
-
+```{r PCA, echo = FALSE}
 
 pca_result <- prcomp(Adam_w_data_numeric, scale. = TRUE)
 
-
-
 variance_explained <- pca_result$sdev^2
-
-variance_explained
 pca_result
 ```
+
+We observe like we suspected from the correlation, that the cleanliness is a big factor in how high the satisfaction is. In PC2 and PC9, we have a large component of guest satisfaction, as well as cleanliness. PC2 also has the second largest variance, which gives it great importance. We also discovered that the when satisfaction is high, lng and lat tend to be small. This might be a consequence of the dataset only including the Amsterdam, as the latitude and longitude might have different effects in different cities.
+
+Other covariates don't appear in the same principal components as guest satisfaction, meaning that they don't seem vary together. This suggests that they are unimportant covariates. 
+
+### Qualitative data
+In order to analyze the qualitative variables we need to utilize other techniques. We have utilized box plots to visualize them. In each of the following plots, the y-axis is the satisfaction, and the x-axis is the variable we want to analyze. 
+
+```{r Boxplot, echo=FALSE}
+Adam_w_data_cat <- Adam_w_data[, c("room_type","room_shared", "room_private", "host_is_superhost","guest_satisfaction_overall")]
+par(mfrow = c(1,2))
+a <- 1
+
+
+
+p1 <- ggplot(Adam_w_data_cat, aes(x = room_private, y = guest_satisfaction_overall)) +
+  geom_boxplot(fill = "blue", alpha = 0.7) +
+  labs(title = "By if room is private ") 
+
+
+p2 <- ggplot(Adam_w_data_cat, aes(x = room_type, y = guest_satisfaction_overall)) +
+  geom_boxplot(fill = "green", alpha = 0.7) +
+  labs(title = "By room type") 
+
+grid.arrange(p1,p2, ncol = 2)
+
+p3 <- ggplot(Adam_w_data_cat, aes(x = room_shared, y = guest_satisfaction_overall)) +
+  geom_boxplot(fill = "red", alpha = 0.7) +
+  labs(title = "By room shared")
+
+p4 <- ggplot(Adam_w_data_cat, aes(x = host_is_superhost, y = guest_satisfaction_overall)) +
+  geom_boxplot(fill = "purple", alpha = 0.7) +
+  labs(title = "By host type ") 
+
+grid.arrange(p3,p4, ncol = 2)
+
+```
+
+In the box plots the mean is shown by the black bar in the middle of the box. If the medians are significantly different in a plot, it would imply that one of the variables effects the satisfaction by a significant amount. In the type, shared and private variables, we dont observe much difference. In the host plot there is a noticable difference in the median. This suggests that it might have an effect on the satisfaction level.
+
+These boxplots show dots at the bottom. This suggests the presence of outlier data. This must be considered when choosing models.
 
 ## Methods
 
@@ -166,19 +207,39 @@ The hyperparameter $\lambda$ must be tuned to achieve a best possible model. A l
 glmnet(x, y, alpha = 1, lambda = lambda_val)
 ```
 
-The data set is quite large, 1103 observations, and we expect linear regression to be robust to variance. We therefore cannot expect a very large improvement in $MSE$ from Lasso regression compared to linear regression.
+The data set is quite large, 1103 observations, and we expect linear regression to be robust to variance. We therefore cannot expect a very large improvement in $MSE$ from Lasso regression compared to linear regression. A linear relation between predictors and response is a very strong requirement, and this might lead to high bias. Furthermore, it is susceptible to outlier data, which we have observed in this data set.
 
 As described in the data analysis part, we discovered that any good model is going to require ability to interperet qualitative and quantitative predictors. Random forest is one such model that works well.
 
 The random forest algorithm works by first making multiple bootstrapping subset of the original dataset. It then creates multiple decision trees using the bootstrapped samples. It does this by choosing random subset of features to split the trees. It then creates a model based on the weighted average.
 
-Random forest works well when the data is non linear, which as we observed in data analysis. The model is able to predict continous variables with high accuracy, making it ideal for our task. Furthermore random forest is robust when it comes to overfitting. We expect this to be a good model to predict this specific data.
+Random forest works well when the data is non linear, which as we observed in data analysis. The model is able to predict continous variables with high accuracy, making it ideal for our task. Furthermore random forest is robust when it comes to overfitting. We expect this to be a good model to predict this specific data. Simple random forest is given by the R function
 
-When testing random forest we have both a simple model, using no hyperparameters, and a model using one hyperparameter. The hyperparameter "mtry", of the complex model, tunes how many variables to randomly sample when testing a split. The tuning criterium is $MSE$ estimated using cross validation. We expect this model to outperform the untuned random forest model.
+```{r rffunc, eval = FALSE}
+randomForest(guest_satisfaction_overall ~ ., data = train)
+```
 
-The last, and possibly the most powerful method we investigate in this project is gradient boosting. By powerful, we mean flexible enough to2 capture complicated patterns in the data, while still remaining robust against overfitting
+When testing random forest we have both a simple model, using no hyperparameters, and later a model using one hyperparameter. The hyperparameter "mtry", of the complex model, tunes how many variables to randomly sample when testing a split. The tuning criterium is $MSE$ estimated using cross validation. We expect this model to outperform the untuned random forest model. This model is implemented as the function
 
-In R, gradient boosting can be implemented using the following function:
+```{r tunedfunc, eval = FALSE}
+rf_tuned <- train(guest_satisfaction_overall~., 
+                  data=train_data, method="rf", 
+                  metric="MSE", 
+                  tuneGrid=expand.grid(.mtry=sqrt(ncol(train_data))), 
+                  trControl=control)
+```
+
+The last, and possibly the most powerful method we investigate in this project is gradient boosting. By powerful, we mean flexible enough to capture complicated patterns in the data, while still remaining robust against overfitting. Similar to random forests, this model should handle nonlinearity well.
+
+Gradient boosting, in this implementation, also uses many regression trees, but instead of training each new regression tree on the response, it trains them on the negative gradient of the loss function. In this case the loss function is the $RSS$, since we have a prediction problem. This approach is inspired by the gradient descent optimization algorithm, since we for each step want to decrease the loss function by as much as possible.
+
+This model has several hyperparameters. The weight of each new added tree, the learning rate, and the max number of trees (iterations) must be specified. I addition: the trees must be tuned by specifying their size and minimum size of terminal nodes.
+
+In R, gradient boosting can be implemented using the following function. The hyperparameters are:
+- shrinkage: learning rate
+- n.trees: number of boosting iterations
+- interaction.depth: tree size
+- n.minobsinnode: minimum number of observations i a terminal node
 
 ```{r gbmfunc, eval=FALSE}
 gbm(formula = guest_satisfaction_overall ~., 
@@ -192,6 +253,8 @@ gbm(formula = guest_satisfaction_overall ~.,
                   cv.folds = 5,
                   )
 ```
+
+While we expect gradient boosting to have good performance, it is quite computation intensive. If the data set is sparse, the gradient might be inaccurate, thus leading to possible errors.
 
 In order to compare these models, we will be applying 5-fold cross validation, as the cross validation error (cv error) is a good estimate for the $MSE$ of the model.
 
@@ -217,8 +280,8 @@ Kfold_linreg <- function(K){
 }
 ```
 
-```{r lmerror}
-Kfold_linreg(5)
+```{r lmerror, echo=FALSE}
+cat("5-fold cv error rate for linear regression: ", Kfold_linreg(5))
 ```
 
 This we can use as a reference when assessing the other models
@@ -280,9 +343,9 @@ What we can see is Lasso is not able to improve the linear regression model. The
 
 We now have reason to believe that the $MSE$ of the linear regression model, as estimated by the cv-error, is not due to variance in the model. If this were the case, we would expect to see improvement from the in the Lasso regression model. We might instead expect the cv-error to be due to bias. The following methods are all more flexible, and might therefore achieve less bias.
 
-We now apply 5-fold cross validation to random forests:
+We now apply 5-fold cross validation to the basic random forests:
 
-```{r Randomforestcv}
+```{r Randomforestcv, echo = FALSE}
 
 
 Kfold_rf <- function(K){
@@ -306,9 +369,9 @@ cat("5-fold cross validation error for random forests: ", Kfold_rf(5))
 ```
 This is not able to outperform any of the previously applied models. In addition, big downside of the Random forest is that it is very computing intesive. Our dataset is rather small so the time spent training wasn't too great. If we were to expand the scope of the project, say by including more cities, and adding weekends, this model would be expensive to tune.
 
-Random forests can be improved however. Below we have another implementation of random forests. this implementation is tuning the hyperparameter "medv", which controls the subset of covariates the method trains the next tree on. by fint tuning this, we might get improved performance
+Random forests can be improved however. Below we have another implementation of random forests. this implementation is tuning the hyperparameter "mtry", which controls the subset of covariates the method trains the next tree on. By fine tuning this, we might improve performance
 
-```{r rftuned}
+```{r rftuned, echo =FALSE}
 
 control <- trainControl(method="cv", number=5)
 
@@ -321,15 +384,15 @@ rf_tuned <- train(guest_satisfaction_overall~.,
 
 
 cat("5-fold cross validation square error:", rf_tuned$results$RMSE^2)
-
+cat("And the parameter mtry was ", rf_tuned$results$mtry)
 ```
 
 While this is an improvement we expected to see, it is not by very much. Even this more optimized version of random forests suffers a bit from the same problems as the previous model, in that it is computer intensive and very difficult to interpret. 
 
-The way we chose to train the random forest is to only use one hyperparameter. This helps to reduce computing time and to avoid overfitting. In order to improve the result, we could add more hyperparameters like number of trees and the sample size. This could be beneficial to the performance, at the cost of computing time.
+The way we chose to train the random forest is to only use one hyperparameter. This helps to reduce computing time and to avoid overfitting. In order to improve the result, we could add more hyperparameters like number of trees and the sample size. This could be beneficial to the performance, at the cost of computation time.
 
-
-```{r Gbm}
+Our implementation of gradient boosting has the following hyperparameters: learning rate = 0.1, max number of trees = 300, maximum tree size = 5 and minimum number of observations in a terminal node is 10.
+```{r Gbm, echo = FALSE}
 Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~., 
                   data = Adam_w_data,
                   distribution = "gaussian",
@@ -341,11 +404,23 @@ Adam_w_gbm <- gbm(formula = guest_satisfaction_overall ~.,
                   cv.folds = 5,
                   )
 
-gbm.perf(Adam_w_gbm, method = "cv")
-summary.gbm(Adam_w_gbm)
-Adam_w_gbm
-names(Adam_w_gbm)
-length(Adam_w_gbm$cv.error)
+
+cat("Lowest cv-error for GB: ", min(Adam_w_gbm$cv.error))
+performance <- gbm.perf(Adam_w_gbm, method = "cv")
 ```
 
+We can see that not even gradient boosting is able to outperform just regular linear regression.
+
+Every tree-based method discussed in this project has been computation intensive, as well as low interpretability. Since these methods don't improve performance, there is little reason to use these methods in this context.
+
+We saw in the descriptive analysis that the data was highly nonlinear, yet linear regression was not outperformed. This might suggest that the $MSE$, as estimated by the cv-error, might not stem from bias, or from variance, but rather possibly from irreducible error.
+
+Gradient boosting could possibly be improved by fine-tuning its hyperparameters. From the performance plot we can see that we probably cannot improve anything by changing the learning rate or the number of trees. But the other hyperparameters were untouched in this project.
+
+We expected this model to perform better than it actually did. We suspect that if more data was included, we might get better performance from gradient boosting. This could be relevant if we were to expand the scope of this project to include other cities, as well as for weekends.
+
 ## Summary
+
+In the project we have explored multiple prediction models. We have discovered what variables were useful for predicting the guest satisfaction in Amsterdam. One model could be improved by tuning hyperparameters. Performance was very similar between the models. We found that random forest had slightly better performance in this small scale project, despite the fact that we could possibly have improved it further.
+
+If one were to expand the scope of the project, the random forest might end up being too computing intensive. It also might turn out that the gradient boosting model performs better when the dataset becomes larger.
